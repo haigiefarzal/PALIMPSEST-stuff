@@ -22,6 +22,13 @@ through. She wrote **three times**. She left the method in the margin — if you
 
 *Recover the last thing she heard.*
 
+## 🔐 Submit your flag
+
+**[▶ Open the Transmission Recovery Console](https://haigiefarzal.github.io/PALIMPSEST-stuff/)** — enter your flag, and if you heard her right, the static clears.
+
+Prefer to check offline? `SHA-256(flag) = d0a217b38539a004d0850dcc9c518358ff7ce5e84fca2e74357a25c34061eaa6`
+(hash exactly `NOCTUA{...}` — braces included, no trailing space or newline).
+
 ## Files
 
 - [`PALIMPSEST_challenge.zip`](PALIMPSEST_challenge.zip) — everything you need (`palimpsest.png`, `brief.txt`)

@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PALIMPSEST · Noctua Array Recovery Console</title>
+<meta name="description" content="Misc CTF challenge. She wrote three times. Recover the last thing she heard.">
+<style>
+  :root{
+    --bg:#07090b; --ink:#cfe9d6; --dim:#5f7a68; --phos:#7dffa8; --red:#ff4d5e; --amber:#ffc46b;
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--ink);font-family:var(--mono);overflow-x:hidden}
+  #static{position:fixed;inset:0;width:100%;height:100%;opacity:.13;pointer-events:none;transition:opacity 2.5s ease}
+  .scan{position:fixed;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(to bottom,rgba(0,0,0,0) 0,rgba(0,0,0,0) 2px,rgba(0,0,0,.28) 3px);z-index:2}
+  .vignette{position:fixed;inset:0;pointer-events:none;z-index:2;
+    background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(0,0,0,.75) 100%)}
+  main{position:relative;z-index:3;max-width:760px;margin:0 auto;padding:56px 22px 40px;min-height:100%;
+    display:flex;flex-direction:column;gap:26px}
+  .log{font-size:12px;letter-spacing:.32em;color:var(--dim);text-transform:uppercase}
+  h1{font-size:clamp(40px,9vw,78px);letter-spacing:.14em;font-weight:800;position:relative;color:var(--ink);
+    text-shadow:0 0 18px rgba(125,255,168,.25)}
+  h1::before,h1::after{content:attr(data-t);position:absolute;inset:0;opacity:.75}
+  h1::before{color:#ff4d5e;transform:translate(2px,0);clip-path:inset(0 0 60% 0);animation:g1 3.2s infinite steps(1)}
+  h1::after{color:#4dd2ff;transform:translate(-2px,0);clip-path:inset(55% 0 0 0);animation:g2 2.7s infinite steps(1)}
+  @keyframes g1{0%,92%{transform:translate(0,0)}93%{transform:translate(4px,-1px)}96%{transform:translate(-3px,1px)}}
+  @keyframes g2{0%,88%{transform:translate(0,0)}89%{transform:translate(-5px,1px)}94%{transform:translate(3px,0)}}
+  .quote{font-style:italic;color:var(--amber);font-size:15px}
+  .story{color:#9fb8a7;font-size:14px;line-height:1.75;max-width:62ch}
+  .story b{color:var(--ink)}
+  .panel{border:1px solid rgba(125,255,168,.22);background:rgba(8,14,11,.72);border-radius:6px;padding:22px;
+    box-shadow:0 0 0 1px rgba(0,0,0,.6),0 0 40px rgba(125,255,168,.06) inset;backdrop-filter:blur(2px)}
+  .panel-h{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--dim);
+    letter-spacing:.2em;text-transform:uppercase;margin-bottom:16px}
+  .led{width:8px;height:8px;border-radius:50%;background:var(--amber);display:inline-block;margin-right:8px;
+    box-shadow:0 0 10px var(--amber);animation:blink 1.4s infinite}
+  @keyframes blink{50%{opacity:.25}}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .prompt{color:var(--phos);align-self:center;font-size:18px}
+  input{flex:1;min-width:220px;background:#030605;border:1px solid rgba(125,255,168,.3);color:var(--phos);
+    font-family:var(--mono);font-size:16px;padding:13px 14px;border-radius:4px;outline:none;caret-color:var(--phos)}
+  input:focus{border-color:var(--phos);box-shadow:0 0 0 3px rgba(125,255,168,.12)}
+  button{font-family:var(--mono);cursor:pointer;border-radius:4px;font-size:14px;letter-spacing:.22em;
+    text-transform:uppercase;font-weight:700;padding:13px 20px;border:1px solid var(--phos);
+    background:linear-gradient(180deg,rgba(125,255,168,.18),rgba(125,255,168,.05));color:var(--phos);transition:.15s}
+  button:hover{background:rgba(125,255,168,.25);box-shadow:0 0 18px rgba(125,255,168,.35)}
+  button:disabled{opacity:.5;cursor:wait}
+  .out{margin-top:16px;min-height:44px;font-size:14px;line-height:1.6;white-space:pre-wrap}
+  .err{color:var(--red);text-shadow:0 0 10px rgba(255,77,94,.4)}
+  .meta{display:flex;justify-content:space-between;font-size:12px;color:var(--dim);margin-top:10px}
+  .shake{animation:shake .45s}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-9px)}40%{transform:translateX(8px)}
+    60%{transform:translateX(-6px)}80%{transform:translateX(4px)}}
+  body.fail-flash::before{content:"";position:fixed;inset:0;background:rgba(255,40,60,.12);z-index:5;pointer-events:none;
+    animation:fade .5s forwards}
+  @keyframes fade{to{opacity:0}}
+  .files a{color:var(--phos)}
+  .files{font-size:13px;color:var(--dim)}
+  footer{margin-top:auto;font-size:11px;color:#3e5246;letter-spacing:.2em;text-align:center;padding-top:20px}
+
+  /* ---------- victory ---------- */
+  #win{position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at center,#0d1a12 0%,#020403 75%);padding:20px}
+  #win.on{display:flex;animation:winIn 1.2s ease}
+  @keyframes winIn{from{opacity:0;filter:blur(8px) brightness(3)}to{opacity:1;filter:none}}
+  #rain{position:absolute;inset:0;width:100%;height:100%}
+  .card{position:relative;z-index:2;max-width:640px;width:100%;text-align:center;border:1px solid rgba(125,255,168,.35);
+    background:rgba(3,8,5,.82);border-radius:8px;padding:34px 26px;box-shadow:0 0 80px rgba(125,255,168,.18)}
+  .big{font-size:clamp(28px,6vw,48px);color:var(--phos);letter-spacing:.16em;font-weight:800;
+    text-shadow:0 0 24px rgba(125,255,168,.6)}
+  .sub{color:var(--amber);letter-spacing:.3em;font-size:12px;margin:12px 0 22px;text-transform:uppercase}
+  #type{min-height:120px;text-align:left;color:#bfe3cb;font-size:14px;line-height:1.8;white-space:pre-wrap}
+  .stats{display:flex;justify-content:center;gap:26px;margin:20px 0;font-size:12px;color:var(--dim);flex-wrap:wrap}
+  .stats b{display:block;color:var(--ink);font-size:20px;margin-top:4px}
+  .sign{display:none;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:8px}
+  .sign.on{display:flex}
+  .sign input{max-width:260px}
+  .ghost{border-color:#3e5246;color:#9fb8a7;background:transparent}
+  #cert{display:none}
+</style>
+</head>
+<body>
+<canvas id="static"></canvas>
+<div class="scan"></div><div class="vignette"></div>
+
+<main id="main">
+  <div class="log">Noctua Array · Field Log #1977 · Misc · Hard / Insane</div>
+  <h1 data-t="PALIMPSEST">PALIMPSEST</h1>
+  <p class="quote">"it writes over itself."</p>
+  <p class="story">
+    In the winter of 1977 a radio astronomer at the decommissioned Noctua Array logged one recording,
+    annotated once in pencil in the <b>margin</b> of the logbook. She was never seen again.
+    Everyone who opens the file sees static, and every one of them swears they saw something different inside.
+    <b>They are all right.</b> She wrote three times. Recover the last thing she heard.
+  </p>
+  <p class="files">↳ files: <a href="PALIMPSEST_challenge.zip" download>PALIMPSEST_challenge.zip</a> · flag format <b>NOCTUA{...}</b></p>
+
+  <section class="panel" id="panel">
+    <div class="panel-h"><span><span class="led" id="led"></span>Transmission recovery console</span><span id="clock">--:--:--</span></div>
+    <form id="f" class="row" autocomplete="off">
+      <span class="prompt">&gt;</span>
+      <input id="flag" spellcheck="false" placeholder="NOCTUA{...}" aria-label="flag">
+      <button id="go" type="submit">Transmit</button>
+    </form>
+    <div class="out" id="out">awaiting transmission_</div>
+    <div class="meta"><span id="att">attempts: 0</span><span id="hint">the static is listening</span></div>
+  </section>
+
+  <footer>NOCTUA ARRAY · DECOMMISSIONED · DO NOT TRANSMIT ON THIS FREQUENCY</footer>
+</main>
+
+<div id="win" role="dialog" aria-live="polite">
+  <canvas id="rain"></canvas>
+  <div class="card">
+    <div class="big" id="bigt">SIGNAL RECOVERED</div>
+    <div class="sub">you heard her</div>
+    <div id="type"></div>
+    <div class="stats">
+      <div>attempts<b id="sA">0</b></div>
+      <div>time in the static<b id="sT">--</b></div>
+      <div>recovered<b id="sD">--</b></div>
+    </div>
+    <div class="sign" id="sign">
+      <input id="who" maxlength="28" placeholder="sign the logbook (your handle)" spellcheck="false">
+      <button id="dl" type="button">Get certificate</button>
+      <button id="share" class="ghost" type="button">Copy brag</button>
+    </div>
+  </div>
+</div>
+<canvas id="cert" width="1200" height="675"></canvas>
+
+<script>
+(() => {
+  // Only the SHA-256 of the flag lives here. The flag itself is never shipped.
+  const FLAG_HASH = "d0a217b38539a004d0850dcc9c518358ff7ce5e84fca2e74357a25c34061eaa6";
+
+  const store = {
+    get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+    set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
+  };
+  if (!store.get("pl_first")) store.set("pl_first", String(Date.now()));
+  let attempts = parseInt(store.get("pl_att") || "0", 10) || 0;
+
+  const $ = id => document.getElementById(id);
+  const out = $("out"), att = $("att"), panel = $("panel"), go = $("go"), inp = $("flag");
+  att.textContent = "attempts: " + attempts;
+
+  // ---------- TV static background ----------
+  const sc = $("static"), sx = sc.getContext("2d");
+  let staticOn = true;
+  function sizeStatic(){ sc.width = Math.ceil(innerWidth/3); sc.height = Math.ceil(innerHeight/3); }
+  sizeStatic(); addEventListener("resize", sizeStatic);
+  function drawStatic(){
+    if (!staticOn) return;
+    const img = sx.createImageData(sc.width, sc.height), d = img.data;
+    for (let i = 0; i < d.length; i += 4){ const v = Math.random()*255|0; d[i]=d[i+1]=d[i+2]=v; d[i+3]=255; }
+    sx.putImageData(img,0,0);
+    requestAnimationFrame(drawStatic);
+  }
+  sc.style.imageRendering = "pixelated";
+  drawStatic();
+
+  // ---------- clock ----------
+  setInterval(() => {
+    const d = new Date(); $("clock").textContent = d.toTimeString().slice(0,8);
+  }, 1000);
+
+  async function sha256(s){
+    const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+    return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2,"0")).join("");
+  }
+
+  const FAILS = [
+    "the static does not recognise you.",
+    "no. she wrote something else.",
+    "you are reading the ink on top.",
+    "closer to the noise than the signal.",
+    "the margin is still blank to you.",
+    "an echo. not her voice.",
+    "the old writing has not bled through yet.",
+  ];
+  const FORMAT = "malformed transmission. the array only speaks NOCTUA{...}";
+
+  function scramble(el, finalText, ms = 650){
+    const chars = "▓▒░#%&@$*+=-:._/\\|<>";
+    const start = performance.now();
+    return new Promise(res => {
+      (function tick(t){
+        const p = Math.min(1,(t-start)/ms);
+        const n = Math.floor(finalText.length*p);
+        let s = finalText.slice(0,n);
+        for (let i=n;i<finalText.length;i++) s += finalText[i]===" " ? " " : chars[Math.random()*chars.length|0];
+        el.textContent = s;
+        p < 1 ? requestAnimationFrame(tick) : res();
+      })(start);
+    });
+  }
+
+  $("f").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const guess = inp.value.trim();
+    if (!guess) return;
+    go.disabled = true;
+    out.className = "out";
+    await scramble(out, "demodulating " + "·".repeat(14), 500);
+    attempts++; store.set("pl_att", String(attempts)); att.textContent = "attempts: " + attempts;
+
+    if (!/^NOCTUA\{.+\}$/.test(guess)){
+      out.className = "out err"; await scramble(out, FORMAT); fail(); return;
+    }
+    const h = await sha256(guess);
+    if (h === FLAG_HASH){ win(); }
+    else {
+      out.className = "out err";
+      await scramble(out, "✗ " + FAILS[(attempts-1) % FAILS.length]);
+      fail();
+    }
+  });
+
+  function fail(){
+    panel.classList.remove("shake"); void panel.offsetWidth; panel.classList.add("shake");
+    document.body.classList.remove("fail-flash"); void document.body.offsetWidth; document.body.classList.add("fail-flash");
+    sc.style.opacity = ".32"; setTimeout(() => sc.style.opacity = ".13", 450);
+    go.disabled = false; inp.select();
+  }
+
+  // ---------- victory ----------
+  const ENDING =
+"> carrier locked.\n" +
+"> the last layer bleeds through...\n\n" +
+"\"I recorded the static because it was the only thing left\n" +
+" that would listen. If you are reading this, you found\n" +
+" the margin. Keep it. Every layer is still here.\"\n\n" +
+"                                  — logbook, final entry";
+
+  function fmtDur(ms){
+    const s = Math.max(0, Math.floor(ms/1000));
+    const d = Math.floor(s/86400), h = Math.floor(s%86400/3600), m = Math.floor(s%3600/60);
+    if (d) return d + "d " + h + "h";
+    if (h) return h + "h " + m + "m";
+    return m + "m " + (s%60) + "s";
+  }
+
+  let solvedAt = null;
+  function win(){
+    solvedAt = new Date();
+    const first = parseInt(store.get("pl_first") || String(Date.now()), 10);
+    $("sA").textContent = attempts;
+    $("sT").textContent = fmtDur(solvedAt - first);
+    $("sD").textContent = solvedAt.toISOString().slice(0,10);
+    store.set("pl_solved", solvedAt.toISOString());
+
+    // fade the static away: the signal is clean now
+    sc.style.opacity = "0"; setTimeout(() => { staticOn = false; }, 2600);
+    $("led").style.background = "var(--phos)"; $("led").style.boxShadow = "0 0 12px var(--phos)";
+    out.className = "out"; out.style.color = "var(--phos)"; out.textContent = "✓ carrier locked. signal recovered.";
+
+    $("win").classList.add("on");
+    startRain();
+    scramble($("bigt"), "SIGNAL RECOVERED", 900);
+    typeOut($("type"), ENDING, 22).then(() => { $("sign").classList.add("on"); $("who").focus(); });
+  }
+
+  function typeOut(el, text, speed){
+    el.textContent = "";
+    return new Promise(res => {
+      let i = 0;
+      (function step(){
+        el.textContent = text.slice(0, ++i) + (i < text.length ? "▌" : "");
+        i < text.length ? setTimeout(step, text[i-1] === "\n" ? speed*6 : speed) : res();
+      })();
+    });
+  }
+
+  // phosphor "rain" of the flag-format glyphs behind the card
+  function startRain(){
+    const c = $("rain"), x = c.getContext("2d");
+    const fit = () => { c.width = innerWidth; c.height = innerHeight; };
+    fit(); addEventListener("resize", fit);
+    const glyphs = "NOCTUA{}_01ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+    const fs = 16; let cols = Math.floor(c.width/fs); let drops = Array(cols).fill(0).map(() => Math.random()*-40);
+    (function frame(){
+      if (Math.floor(c.width/fs) !== cols){ cols = Math.floor(c.width/fs); drops = Array(cols).fill(0); }
+      x.fillStyle = "rgba(2,4,3,.12)"; x.fillRect(0,0,c.width,c.height);
+      x.font = fs + "px monospace";
+      for (let i = 0; i < cols; i++){
+        const ch = glyphs[Math.random()*glyphs.length|0];
+        x.fillStyle = Math.random() < .03 ? "#ffffff" : "rgba(125,255,168,.75)";
+        x.fillText(ch, i*fs, drops[i]*fs);
+        if (drops[i]*fs > c.height && Math.random() > .975) drops[i] = 0;
+        drops[i]++;
+      }
+      requestAnimationFrame(frame);
+    })();
+  }
+
+  // ---------- certificate ----------
+  $("dl").addEventListener("click", () => {
+    const who = ($("who").value.trim() || "anonymous listener").slice(0,28);
+    const c = $("cert"), x = c.getContext("2d"), W = c.width, H = c.height;
+    x.fillStyle = "#04080a"; x.fillRect(0,0,W,H);
+    for (let i = 0; i < 9000; i++){ const v = Math.random()*60|0; x.fillStyle = `rgb(${v},${v+10},${v+4})`; x.fillRect(Math.random()*W, Math.random()*H, 2, 2); }
+    for (let y = 0; y < H; y += 4){ x.fillStyle = "rgba(0,0,0,.25)"; x.fillRect(0,y,W,1); }
+    x.strokeStyle = "rgba(125,255,168,.55)"; x.lineWidth = 2; x.strokeRect(36,36,W-72,H-72);
+    x.strokeStyle = "rgba(125,255,168,.18)"; x.strokeRect(50,50,W-100,H-100);
+    x.textAlign = "center";
+    x.fillStyle = "#5f7a68"; x.font = "20px monospace"; x.fillText("NOCTUA ARRAY  ·  FIELD LOG #1977", W/2, 120);
+    x.shadowColor = "rgba(125,255,168,.7)"; x.shadowBlur = 24;
+    x.fillStyle = "#7dffa8"; x.font = "bold 92px monospace"; x.fillText("PALIMPSEST", W/2, 240);
+    x.shadowBlur = 0;
+    x.fillStyle = "#ffc46b"; x.font = "22px monospace"; x.fillText("SIGNAL RECOVERED  —  THE LAST LAYER WAS READ BY", W/2, 320);
+    x.fillStyle = "#e9fff0"; x.font = "bold 58px monospace"; x.fillText(who, W/2, 410);
+    x.fillStyle = "#9fb8a7"; x.font = "22px monospace";
+    x.fillText(`attempts ${attempts}   ·   ${$("sT").textContent} in the static   ·   ${solvedAt.toISOString().slice(0,10)}`, W/2, 480);
+    x.fillStyle = "#5f7a68"; x.font = "italic 20px monospace"; x.fillText('"it writes over itself."', W/2, 560);
+    const a = document.createElement("a");
+    a.download = "palimpsest-" + who.replace(/[^a-z0-9_-]+/gi,"_") + ".png";
+    a.href = c.toDataURL("image/png"); a.click();
+  });
+
+  $("share").addEventListener("click", async () => {
+    const who = $("who").value.trim() || "I";
+    const msg = `${who} recovered the signal in PALIMPSEST (Misc, Hard/Insane) after ${attempts} attempt(s). "it writes over itself." ${location.href}`;
+    try { await navigator.clipboard.writeText(msg); $("share").textContent = "copied ✓"; }
+    catch(e){ prompt("copy this:", msg); }
+  });
+
+  // already solved before on this browser? show a quiet badge
+  if (store.get("pl_solved")) $("hint").textContent = "you have heard her before";
+})();
+</script>
+</body>
+</html>
